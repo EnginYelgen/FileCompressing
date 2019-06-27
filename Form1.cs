@@ -78,6 +78,8 @@ namespace FileCompressing
             startTime = DateTime.Now;
             button_Compress.Enabled = button_Export.Enabled = false;
             compressFiles = new List<CompressFile>();
+            label_Count.Text = string.Empty;
+            progressBar1.Value = 0;
         }
 
         private void StopProgress()
@@ -240,6 +242,7 @@ namespace FileCompressing
             string fileName = string.Empty, newFileName = string.Empty;
             long fileLength = 0;
             int newFileLength = 0;
+            FileInfo fileInfo;
             for (int j = 0; j < filePaths.Length; j++)
             {
                 reader = new PdfReader(filePaths[j]);
@@ -313,16 +316,16 @@ namespace FileCompressing
                             }
                         }
                     }
-
-                    newFileLength = fs.ReadByte();
                 }
+
+                fileInfo = new FileInfo(newFileName);
 
                 compressFiles.Add(new CompressFile
                 {
                     Method = "Overwrite",
                     FilePath = filePaths[j],
                     FileTypeName = "pdf",
-                    NewSize = newFileLength,
+                    NewSize = fileInfo.Length,
                     OldSize = fileLength
                 });
 
@@ -411,7 +414,7 @@ namespace FileCompressing
 
         private void button_Export_Click(object sender, EventArgs e)
         {
-            System.Xml.Serialization.XmlSerializer writer = new System.Xml.Serialization.XmlSerializer(typeof(CompressFile));
+            System.Xml.Serialization.XmlSerializer writer = new System.Xml.Serialization.XmlSerializer(typeof(List<CompressFile>));
 
             var path = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "//CompressedFiles.xml";
             System.IO.FileStream file = System.IO.File.Create(path);
@@ -419,7 +422,7 @@ namespace FileCompressing
             writer.Serialize(file, compressFiles);
             file.Close();
 
-            MessageBox.Show("Dosya oluşturulmuştur. Aşağıdaki dizinden erişebilirsiniz.\n" + path, "Bilgilendirme", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show("Dosya oluşturulmuştur. Aşağıdaki dizinden erişebilirsiniz.\n\n" + path, "Bilgilendirme", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void button_Browse_Click(object sender, EventArgs e)
