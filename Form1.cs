@@ -21,7 +21,7 @@ namespace FileCompressing
         private FolderBrowserDialog folderBrowserDialog1, folderBrowserDialogNew;
         private string folderName, folderNameNew;
         private DateTime startTime;
-        private List<CompressFile> compressFiles = new List<CompressFile>();
+        private CompressFile compressFile = new CompressFile();
 
         public Form1()
         {
@@ -40,7 +40,8 @@ namespace FileCompressing
 
             button_Export.Enabled = false;
 
-            dataGridView_Files.DataSource = compressFiles;
+            compressFile.CompressFileDetails = new List<CompressFileDetail>();
+            dataGridView_Files.DataSource = compressFile.CompressFileDetails;
         }
 
         private void Timer1_Tick(object sender, EventArgs e)
@@ -77,7 +78,9 @@ namespace FileCompressing
             timer1.Enabled = true;
             startTime = DateTime.Now;
             button_Compress.Enabled = button_Export.Enabled = false;
-            compressFiles = new List<CompressFile>();
+            compressFile = new CompressFile();
+            compressFile.StartDate = DateTime.Now;
+            compressFile.CompressFileDetails = new List<CompressFileDetail>();
             label_Count.Text = string.Empty;
             progressBar1.Value = 0;
         }
@@ -85,14 +88,14 @@ namespace FileCompressing
         private void StopProgress()
         {
             timer1.Enabled = false;
-            //button_Compress.BeginInvoke(new Action(delegate () { button_Compress.Enabled = true; }));
+            compressFile.EndDate = DateTime.Now;
             button_Compress.Invoke(new Action(() => { button_Compress.Enabled = true; }));
             button_Export.Invoke(new Action(() =>
             {
-                if (compressFiles.Count > 0)
+                if (compressFile.CompressFileDetails.Count > 0)
                     button_Export.Enabled = true;
             }));
-            label_Count.Invoke(new Action(() => { label_Count.Text = "Count: " + compressFiles.Count; }));
+            label_Count.Invoke(new Action(() => { label_Count.Text = "Count: " + compressFile.CompressFileDetails.Count; }));
         }
 
         private void OverwriteFiles()
@@ -109,6 +112,9 @@ namespace FileCompressing
             {
                 progressBar1.Maximum = filePaths.Length;
             }));
+
+            compressFile.Method = "Overwrite";
+            compressFile.FileTypeName = "pdf";
 
             //Now we're going to open the above PDF and compress things
 
@@ -192,11 +198,13 @@ namespace FileCompressing
 
                 File.WriteAllBytes(filePaths[j], memoryBytes);
 
-                compressFiles.Add(new CompressFile
+                compressFile.OldSize += fileLength;
+                compressFile.NewSize += memoryBytes.Length;
+
+                compressFile.CompressFileDetails.Add(new CompressFileDetail
                 {
-                    Method = "Overwrite",
-                    FilePath = filePaths[j],
-                    FileTypeName = "pdf",
+                    OldFilePath = filePaths[j],
+                    NewFilePath = filePaths[j],
                     NewSize = memoryBytes.Length,
                     OldSize = fileLength
                 });
@@ -204,7 +212,7 @@ namespace FileCompressing
                 dataGridView_Files.Invoke(new Action(() =>
                 {
                     dataGridView_Files.DataSource = null;
-                    dataGridView_Files.DataSource = compressFiles;
+                    dataGridView_Files.DataSource = compressFile.CompressFileDetails;
                 }));
 
                 progressBar1.Invoke(new Action(() =>
@@ -235,13 +243,15 @@ namespace FileCompressing
                 progressBar1.Maximum = filePaths.Length;
             }));
 
+            compressFile.Method = "CreateNew";
+            compressFile.FileTypeName = "pdf";
+
             //Now we're going to open the above PDF and compress things
 
             //Bind a reader to our large PDF
             PdfReader reader;
             string fileName = string.Empty, newFileName = string.Empty;
             long fileLength = 0;
-            int newFileLength = 0;
             FileInfo fileInfo;
             for (int j = 0; j < filePaths.Length; j++)
             {
@@ -320,11 +330,13 @@ namespace FileCompressing
 
                 fileInfo = new FileInfo(newFileName);
 
-                compressFiles.Add(new CompressFile
+                compressFile.OldSize += fileLength;
+                compressFile.NewSize += fileInfo.Length;
+
+                compressFile.CompressFileDetails.Add(new CompressFileDetail
                 {
-                    Method = "Overwrite",
-                    FilePath = filePaths[j],
-                    FileTypeName = "pdf",
+                    OldFilePath = filePaths[j],
+                    NewFilePath = newFileName,
                     NewSize = fileInfo.Length,
                     OldSize = fileLength
                 });
@@ -332,7 +344,7 @@ namespace FileCompressing
                 dataGridView_Files.Invoke(new Action(() =>
                 {
                     dataGridView_Files.DataSource = null;
-                    dataGridView_Files.DataSource = compressFiles;
+                    dataGridView_Files.DataSource = compressFile.CompressFileDetails;
                 }));
 
                 progressBar1.Invoke(new Action(() =>
@@ -414,13 +426,13 @@ namespace FileCompressing
 
         private void button_Export_Click(object sender, EventArgs e)
         {
-            System.Xml.Serialization.XmlSerializer writer = new System.Xml.Serialization.XmlSerializer(typeof(List<CompressFile>));
+            System.Xml.Serialization.XmlSerializer writer = new System.Xml.Serialization.XmlSerializer(typeof(CompressFile));
 
             DirectoryInfo directoryInfo = new DirectoryInfo(folderName);
             var path = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "//CompressedFiles_" + directoryInfo.Name + ".xml";
             System.IO.FileStream file = System.IO.File.Create(path);
 
-            writer.Serialize(file, compressFiles);
+            writer.Serialize(file, compressFile);
             file.Close();
 
             MessageBox.Show("Dosya oluşturulmuştur. Aşağıdaki dizinden erişebilirsiniz.\n\n" + path, "Bilgilendirme", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -450,12 +462,27 @@ namespace FileCompressing
     public class CompressFile
     {
         public string Method { get; set; }
-        public string FilePath { get; set; }
+        public string FileTypeName { get; set; }
+        public DateTime StartDate { get; set; }
+        public DateTime EndDate { get; set; }
         public long OldSize { get; set; }
         public long NewSize { get; set; }
-        public string FileTypeName { get; set; }
+        public List<CompressFileDetail> CompressFileDetails { get; set; }
 
         public CompressFile()
+        {
+
+        }
+    }
+
+    public class CompressFileDetail
+    {
+        public string OldFilePath { get; set; }
+        public string NewFilePath { get; set; }
+        public long OldSize { get; set; }
+        public long NewSize { get; set; }
+
+        public CompressFileDetail()
         {
 
         }
