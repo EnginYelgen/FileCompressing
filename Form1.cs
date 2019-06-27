@@ -416,7 +416,8 @@ namespace FileCompressing
         {
             System.Xml.Serialization.XmlSerializer writer = new System.Xml.Serialization.XmlSerializer(typeof(List<CompressFile>));
 
-            var path = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "//CompressedFiles.xml";
+            DirectoryInfo directoryInfo = new DirectoryInfo(folderName);
+            var path = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "//CompressedFiles_" + directoryInfo.Name + ".xml";
             System.IO.FileStream file = System.IO.File.Create(path);
 
             writer.Serialize(file, compressFiles);
