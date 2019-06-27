@@ -33,7 +33,7 @@ namespace FileCompressing
             timer1.Interval = 1000;
             timer1.Tick += Timer1_Tick;
 
-            label_Timer.Text = label_Count.Text = string.Empty;
+            label_FolderPath.Text = label_NewPath.Text = label_Timer.Text = label_Count.Text = string.Empty;
 
             progressBar1.Minimum = 0;
             progressBar1.Step = 1;
@@ -102,7 +102,7 @@ namespace FileCompressing
             }
 
             string[] filePaths = Directory.GetFiles(folderName, "*.pdf", SearchOption.AllDirectories);
-            
+
             progressBar1.Invoke(new Action(() =>
             {
                 progressBar1.Maximum = filePaths.Length;

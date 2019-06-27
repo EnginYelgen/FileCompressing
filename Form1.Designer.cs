@@ -71,8 +71,9 @@
             this.label_FolderPath.AutoSize = true;
             this.label_FolderPath.Location = new System.Drawing.Point(93, 45);
             this.label_FolderPath.Name = "label_FolderPath";
-            this.label_FolderPath.Size = new System.Drawing.Size(0, 13);
+            this.label_FolderPath.Size = new System.Drawing.Size(61, 13);
             this.label_FolderPath.TabIndex = 2;
+            this.label_FolderPath.Text = "Folder Path";
             // 
             // label1
             // 
@@ -95,10 +96,11 @@
             // label_NewPath
             // 
             this.label_NewPath.AutoSize = true;
-            this.label_NewPath.Location = new System.Drawing.Point(93, 93);
+            this.label_NewPath.Location = new System.Drawing.Point(93, 134);
             this.label_NewPath.Name = "label_NewPath";
-            this.label_NewPath.Size = new System.Drawing.Size(0, 13);
+            this.label_NewPath.Size = new System.Drawing.Size(54, 13);
             this.label_NewPath.TabIndex = 5;
+            this.label_NewPath.Text = "New Path";
             // 
             // button_BrowseNewFolder
             // 
