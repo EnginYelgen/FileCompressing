@@ -176,7 +176,6 @@ namespace FileCompressing
                                                         //NOTE: There's a bunch of different types of filters, I'm only handing the simplest one here which is basically raw JPG, you'll have to research others
                                                         if (imgObject.Get(PdfName.FILTER).Equals(PdfName.DCTDECODE))
                                                         {
-                                                            continue; // Geçici
                                                             logFile = true;
                                                             Compress(imgObject, stamper, obj);
                                                         }
@@ -321,7 +320,6 @@ namespace FileCompressing
                                                     //NOTE: There's a bunch of different types of filters, I'm only handing the simplest one here which is basically raw JPG, you'll have to research others
                                                     if (imgObject.Get(PdfName.FILTER).Equals(PdfName.DCTDECODE))
                                                     {
-                                                        continue; // Geçici
                                                         logFile = true;
                                                         Compress(imgObject, stamper, obj);
                                                     }
