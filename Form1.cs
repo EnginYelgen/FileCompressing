@@ -22,6 +22,8 @@ namespace FileCompressing
         private string folderName, folderNameNew;
         private DateTime startTime;
         private CompressFile compressFile = new CompressFile();
+        private static long compressionLevel;
+        private static float shrinkLevel;
 
         public Form1()
         {
@@ -34,6 +36,11 @@ namespace FileCompressing
             timer1.Tick += Timer1_Tick;
 
             label_FolderPath.Text = label_NewPath.Text = label_Timer.Text = label_Count.Text = string.Empty;
+            label_CompressLevel.Text = trackBar_CompressLevel.Value.ToString();
+            label_ShrinkLevel.Text = trackBar_ShrinkLevel.Value.ToString();
+
+            compressionLevel = Convert.ToByte(100 - trackBar_CompressLevel.Value);
+            shrinkLevel = Convert.ToSingle(100 - trackBar_ShrinkLevel.Value) / 100;
 
             progressBar1.Minimum = 0;
             progressBar1.Step = 1;
@@ -83,6 +90,9 @@ namespace FileCompressing
             compressFile.CompressFileDetails = new List<CompressFileDetail>();
             label_Count.Text = string.Empty;
             progressBar1.Value = 0;
+
+            dataGridView_Files.DataSource = null;
+            dataGridView_Files.DataSource = compressFile.CompressFileDetails;
         }
 
         private void StopProgress()
@@ -116,15 +126,17 @@ namespace FileCompressing
             compressFile.Method = "Overwrite";
             compressFile.FileTypeName = "pdf";
 
-            //Now we're going to open the above PDF and compress things
+            bool logFile = false;
 
             //Bind a reader to our large PDF
             for (int j = 0; j < filePaths.Length; j++)
             {
+                logFile = false;
                 byte[] memoryBytes = null;
                 long fileLength = 0;
                 try
                 {
+                    //Now we're going to open the above PDF and compress things
                     using (PdfReader reader = new PdfReader(filePaths[j]))
                     {
                         fileLength = reader.FileLength;
@@ -159,33 +171,29 @@ namespace FileCompressing
                                                 //See if its an image
                                                 if (imgObject != null && imgObject.Get(PdfName.SUBTYPE).Equals(PdfName.IMAGE))
                                                 {
-                                                    //NOTE: There's a bunch of different types of filters, I'm only handing the simplest one here which is basically raw JPG, you'll have to research others
-                                                    if (imgObject.Get(PdfName.FILTER) != null && imgObject.Get(PdfName.FILTER).Equals(PdfName.DCTDECODE))
+                                                    if (imgObject.Get(PdfName.FILTER) != null)
                                                     {
-                                                        //Get the raw bytes of the current image
-                                                        byte[] oldBytes = PdfReader.GetStreamBytesRaw((PRStream)imgObject);
-                                                        //Will hold bytes of the compressed image later
-                                                        byte[] newBytes;
-                                                        //Wrap a stream around our original image
-                                                        using (MemoryStream sourceMS = new MemoryStream(oldBytes))
+                                                        //NOTE: There's a bunch of different types of filters, I'm only handing the simplest one here which is basically raw JPG, you'll have to research others
+                                                        if (imgObject.Get(PdfName.FILTER).Equals(PdfName.DCTDECODE))
                                                         {
-                                                            //Convert the bytes into a .Net image
-                                                            using (System.Drawing.Image oldImage = Bitmap.FromStream(sourceMS))
+                                                            continue; // Geçici
+                                                            logFile = true;
+                                                            Compress(imgObject, stamper, obj);
+                                                        }
+                                                        else if (imgObject.Get(PdfName.FILTER).IsArray())
+                                                        {
+                                                            PdfArray pdfArray = (PdfArray)imgObject.Get(PdfName.FILTER);
+                                                            List<PdfObject> pdfObjects = pdfArray.ArrayList;
+
+                                                            for (int k = 0; k < pdfObjects.Count; k++)
                                                             {
-                                                                //Shrink the image to 90% of the original
-                                                                using (System.Drawing.Image newImage = ShrinkImage(oldImage, 0.9f))
+                                                                if (pdfObjects[k].Equals(PdfName.DCTDECODE))
                                                                 {
-                                                                    //Convert the image to bytes using JPG at 85%
-                                                                    newBytes = ConvertImageToBytes(newImage, 10);
+                                                                    logFile = true;
+                                                                    Compress(imgObject, stamper, obj);
                                                                 }
                                                             }
                                                         }
-                                                        //Create a new iTextSharp image from our bytes
-                                                        iTextSharp.text.Image compressedImage = iTextSharp.text.Image.GetInstance(newBytes);
-                                                        //Kill off the old image
-                                                        PdfReader.KillIndirect(obj);
-                                                        //Add our image in its place
-                                                        stamper.Writer.AddDirectImageSimple(compressedImage, (PRIndirectReference)obj);
                                                     }
                                                 }
                                             }
@@ -198,24 +206,27 @@ namespace FileCompressing
                         }
                     }
 
-                    File.WriteAllBytes(filePaths[j], memoryBytes);
-
-                    compressFile.OldSize += fileLength;
-                    compressFile.NewSize += memoryBytes.Length;
-
-                    compressFile.CompressFileDetails.Add(new CompressFileDetail
+                    if (logFile)
                     {
-                        OldFilePath = filePaths[j],
-                        NewFilePath = filePaths[j],
-                        NewSize = memoryBytes.Length,
-                        OldSize = fileLength
-                    });
+                        File.WriteAllBytes(filePaths[j], memoryBytes);
 
-                    dataGridView_Files.Invoke(new Action(() =>
-                    {
-                        dataGridView_Files.DataSource = null;
-                        dataGridView_Files.DataSource = compressFile.CompressFileDetails;
-                    }));
+                        compressFile.OldSize += fileLength;
+                        compressFile.NewSize += memoryBytes.Length;
+
+                        compressFile.CompressFileDetails.Add(new CompressFileDetail
+                        {
+                            OldFilePath = filePaths[j],
+                            NewFilePath = filePaths[j],
+                            NewSize = memoryBytes.Length,
+                            OldSize = fileLength
+                        });
+
+                        dataGridView_Files.Invoke(new Action(() =>
+                        {
+                            dataGridView_Files.DataSource = null;
+                            dataGridView_Files.DataSource = compressFile.CompressFileDetails;
+                        }));
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -255,8 +266,8 @@ namespace FileCompressing
             compressFile.Method = "CreateNew";
             compressFile.FileTypeName = "pdf";
 
-            //Now we're going to open the above PDF and compress things
-
+            bool logFile = false;
+            
             //Bind a reader to our large PDF
             PdfReader reader;
             string fileName = string.Empty, newFileName = string.Empty;
@@ -264,8 +275,10 @@ namespace FileCompressing
             FileInfo fileInfo;
             for (int j = 0; j < filePaths.Length; j++)
             {
+                logFile = false;
                 try
                 {
+                    //Now we're going to open the above PDF and compress things
                     reader = new PdfReader(filePaths[j]);
                     fileLength = reader.FileLength;
                     newFileName = folderNameNew + filePaths[j].Replace(folderName, "");
@@ -303,33 +316,29 @@ namespace FileCompressing
                                             //See if its an image
                                             if (imgObject != null && imgObject.Get(PdfName.SUBTYPE).Equals(PdfName.IMAGE))
                                             {
-                                                //NOTE: There's a bunch of different types of filters, I'm only handing the simplest one here which is basically raw JPG, you'll have to research others
-                                                if (imgObject.Get(PdfName.FILTER) != null && imgObject.Get(PdfName.FILTER).Equals(PdfName.DCTDECODE))
+                                                if (imgObject.Get(PdfName.FILTER) != null)
                                                 {
-                                                    //Get the raw bytes of the current image
-                                                    byte[] oldBytes = PdfReader.GetStreamBytesRaw((PRStream)imgObject);
-                                                    //Will hold bytes of the compressed image later
-                                                    byte[] newBytes;
-                                                    //Wrap a stream around our original image
-                                                    using (MemoryStream sourceMS = new MemoryStream(oldBytes))
+                                                    //NOTE: There's a bunch of different types of filters, I'm only handing the simplest one here which is basically raw JPG, you'll have to research others
+                                                    if (imgObject.Get(PdfName.FILTER).Equals(PdfName.DCTDECODE))
                                                     {
-                                                        //Convert the bytes into a .Net image
-                                                        using (System.Drawing.Image oldImage = Bitmap.FromStream(sourceMS))
+                                                        continue; // Geçici
+                                                        logFile = true;
+                                                        Compress(imgObject, stamper, obj);
+                                                    }
+                                                    else if (imgObject.Get(PdfName.FILTER).IsArray())
+                                                    {
+                                                        PdfArray pdfArray = (PdfArray)imgObject.Get(PdfName.FILTER);
+                                                        List<PdfObject> pdfObjects = pdfArray.ArrayList;
+
+                                                        for (int k = 0; k < pdfObjects.Count; k++)
                                                         {
-                                                            //Shrink the image to 90% of the original
-                                                            using (System.Drawing.Image newImage = ShrinkImage(oldImage, 0.9f))
+                                                            if (pdfObjects[k].Equals(PdfName.DCTDECODE))
                                                             {
-                                                                //Convert the image to bytes using JPG at 85%
-                                                                newBytes = ConvertImageToBytes(newImage, 10);
+                                                                logFile = true;
+                                                                Compress(imgObject, stamper, obj);
                                                             }
                                                         }
                                                     }
-                                                    //Create a new iTextSharp image from our bytes
-                                                    iTextSharp.text.Image compressedImage = iTextSharp.text.Image.GetInstance(newBytes);
-                                                    //Kill off the old image
-                                                    PdfReader.KillIndirect(obj);
-                                                    //Add our image in its place
-                                                    stamper.Writer.AddDirectImageSimple(compressedImage, (PRIndirectReference)obj);
                                                 }
                                             }
                                         }
@@ -339,24 +348,27 @@ namespace FileCompressing
                         }
                     }
 
-                    fileInfo = new FileInfo(newFileName);
-
-                    compressFile.OldSize += fileLength;
-                    compressFile.NewSize += fileInfo.Length;
-
-                    compressFile.CompressFileDetails.Add(new CompressFileDetail
+                    if (logFile)
                     {
-                        OldFilePath = filePaths[j],
-                        NewFilePath = newFileName,
-                        NewSize = fileInfo.Length,
-                        OldSize = fileLength
-                    });
+                        fileInfo = new FileInfo(newFileName);
 
-                    dataGridView_Files.Invoke(new Action(() =>
-                    {
-                        dataGridView_Files.DataSource = null;
-                        dataGridView_Files.DataSource = compressFile.CompressFileDetails;
-                    }));
+                        compressFile.OldSize += fileLength;
+                        compressFile.NewSize += fileInfo.Length;
+
+                        compressFile.CompressFileDetails.Add(new CompressFileDetail
+                        {
+                            OldFilePath = filePaths[j],
+                            NewFilePath = newFileName,
+                            NewSize = fileInfo.Length,
+                            OldSize = fileLength
+                        });
+
+                        dataGridView_Files.Invoke(new Action(() =>
+                        {
+                            dataGridView_Files.DataSource = null;
+                            dataGridView_Files.DataSource = compressFile.CompressFileDetails;
+                        }));
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -372,17 +384,37 @@ namespace FileCompressing
             }
         }
 
-        //Standard image save code from MSDN, returns a byte array
-        private static byte[] ConvertImageToBytes(System.Drawing.Image image, long compressionLevel)
+        private void Compress(PdfDictionary imgObject, PdfStamper stamper, PdfObject obj)
         {
-            if (compressionLevel < 0)
+            //Get the raw bytes of the current image
+            byte[] oldBytes = PdfReader.GetStreamBytesRaw((PRStream)imgObject);
+            //Will hold bytes of the compressed image later
+            byte[] newBytes;
+            //Wrap a stream around our original image
+            using (MemoryStream sourceMS = new MemoryStream(oldBytes))
             {
-                compressionLevel = 0;
+                //Convert the bytes into a .Net image
+                using (System.Drawing.Image oldImage = Bitmap.FromStream(sourceMS))
+                {
+                    //Shrink the image to 90% of the original
+                    using (System.Drawing.Image newImage = ShrinkImage(oldImage))
+                    {
+                        //Convert the image to bytes using JPG at 85%
+                        newBytes = ConvertImageToBytes(newImage);
+                    }
+                }
             }
-            else if (compressionLevel > 100)
-            {
-                compressionLevel = 100;
-            }
+            //Create a new iTextSharp image from our bytes
+            iTextSharp.text.Image compressedImage = iTextSharp.text.Image.GetInstance(newBytes);
+            //Kill off the old image
+            PdfReader.KillIndirect(obj);
+            //Add our image in its place
+            stamper.Writer.AddDirectImageSimple(compressedImage, (PRIndirectReference)obj);
+        }
+
+        //Standard image save code from MSDN, returns a byte array
+        private static byte[] ConvertImageToBytes(System.Drawing.Image image)
+        {
             ImageCodecInfo jgpEncoder = GetEncoder(ImageFormat.Jpeg);
 
             System.Drawing.Imaging.Encoder myEncoder = System.Drawing.Imaging.Encoder.Quality;
@@ -394,7 +426,6 @@ namespace FileCompressing
                 image.Save(ms, jgpEncoder, myEncoderParameters);
                 return ms.ToArray();
             }
-
         }
         //standard code from MSDN
         private static ImageCodecInfo GetEncoder(ImageFormat format)
@@ -410,10 +441,10 @@ namespace FileCompressing
             return null;
         }
         //Standard high quality thumbnail generation from http://weblogs.asp.net/gunnarpeipman/archive/2009/04/02/resizing-images-without-loss-of-quality.aspx
-        private static System.Drawing.Image ShrinkImage(System.Drawing.Image sourceImage, float scaleFactor)
+        private static System.Drawing.Image ShrinkImage(System.Drawing.Image sourceImage)
         {
-            int newWidth = Convert.ToInt32(sourceImage.Width * scaleFactor);
-            int newHeight = Convert.ToInt32(sourceImage.Height * scaleFactor);
+            int newWidth = Convert.ToInt32(sourceImage.Width * shrinkLevel);
+            int newHeight = Convert.ToInt32(sourceImage.Height * shrinkLevel);
 
             var thumbnailBitmap = new Bitmap(newWidth, newHeight);
             using (Graphics g = Graphics.FromImage(thumbnailBitmap))
@@ -454,6 +485,29 @@ namespace FileCompressing
             file.Close();
 
             MessageBox.Show("Dosya oluşturulmuştur. Aşağıdaki dizinden erişebilirsiniz.\n\n" + path, "Bilgilendirme", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void trackBar_ValueChanged(object sender, EventArgs e)
+        {
+            TrackBar trackBar = sender as TrackBar;
+
+            switch (trackBar.Name)
+            {
+                case "trackBar_CompressLevel":
+                    {
+                        label_CompressLevel.Text = trackBar.Value.ToString();
+                        compressionLevel = Convert.ToByte(100 - trackBar.Value);
+                    }
+                    break;
+                case "trackBar_ShrinkLevel":
+                    {
+                        label_ShrinkLevel.Text = trackBar.Value.ToString();
+                        shrinkLevel = Convert.ToSingle(100 - trackBar.Value) / 100;
+                    }
+                    break;
+                default:
+                    break;
+            }
         }
 
         private void button_Browse_Click(object sender, EventArgs e)
